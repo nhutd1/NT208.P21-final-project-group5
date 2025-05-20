@@ -29,17 +29,22 @@ POST /api/reviews
 ```
 
 JSON body:
+```json
 {
   "productId": 5,
   "rating": 4,
   "comment": "Sản phẩm tốt!"
 }
+```
 2. Frontend
+```bash
 cd prj/frontend
 npm install
 npm start
+```
 Mở trình duyệt tại http://localhost:3000
 📂 Cấu trúc thư mục
+```pgsql
 prj/
 ├── backend/
 │   ├── .env
@@ -60,4 +65,4 @@ prj/
         ├── pages/
         ├── App.js
         └── index.js
-Just create a file named `README.md` in your repo root and paste the above content.
+```
