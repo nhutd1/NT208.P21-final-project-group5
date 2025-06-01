@@ -1,16 +1,15 @@
-const axios = require('axios');
-const BASE_URL = 'https://api.escuelajs.co/api/v1';
+// backend/services/productService.js
+const Product = require('../models/Product');
 
 async function fetchProducts(offset = 0, limit = 10) {
-  const url = `${BASE_URL}/products?offset=${offset}&limit=${limit}`;
-  const res = await axios.get(url);
-  return res.data;
+  return await Product.find().skip(Number(offset)).limit(Number(limit));
 }
 
 async function fetchProductById(id) {
-  const url = `${BASE_URL}/products/${id}`;
-  const res = await axios.get(url);
-  return res.data;
+  // Nếu dùng mongoose, nên convert id sang ObjectId:
+  const mongoose = require('mongoose');
+  return await Product.findById(mongoose.Types.ObjectId(id));
 }
+
 
 module.exports = { fetchProducts, fetchProductById };

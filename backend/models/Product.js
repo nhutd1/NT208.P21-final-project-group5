@@ -1,9 +1,12 @@
-// backend/models/Product.js
 const mongoose = require('mongoose');
-const productSchema = new mongoose.Schema({
-  name: String,
-  price: Number,
+
+const ProductSchema = new mongoose.Schema({
+  title: String,
   description: String,
-  image: String
+  price: Number,
+  imageUrl: String,
+  category: String,
+  ownerId: mongoose.Schema.Types.ObjectId
 });
-module.exports = mongoose.model('Product', productSchema);
+
+module.exports = mongoose.model('Product', ProductSchema);

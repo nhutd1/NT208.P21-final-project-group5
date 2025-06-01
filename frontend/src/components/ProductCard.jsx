@@ -1,18 +1,18 @@
-    import React from 'react';
+import React from 'react';
 
 export default function ProductCard({ product }) {
   return (
-    <div className="bg-white dark:bg-neutral-800 rounded-xl shadow p-4 flex flex-col gap-2 w-full max-w-xs mx-auto">
+    <div className="bg-white rounded-lg shadow p-4 flex flex-col">
       <img
-        src={product.image || 'https://via.placeholder.com/200x200?text=Product'}
-        alt={product.name}
-        className="rounded-xl h-48 object-cover mb-2"
+        src={product.imageUrl || 'https://via.placeholder.com/200'}
+        alt={product.title}
+        className="h-48 w-full object-cover rounded mb-3"
       />
-      <h3 className="font-semibold text-lg text-neutral-800 dark:text-white line-clamp-2">{product.name}</h3>
-      <div className="text-primary font-bold text-xl">
-        {product.price?.toLocaleString()} <span className="text-base font-normal">VNĐ</span>
-      </div>
-      <button className="mt-auto py-1 px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition">Xem chi tiết</button>
+      <h3 className="font-semibold text-lg mb-1">{product.title}</h3>
+      <p className="text-gray-700 font-bold mb-2">{product.price.toLocaleString()} VNĐ</p>
+      <button className="mt-auto bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
+        Xem chi tiết
+      </button>
     </div>
   );
 }
