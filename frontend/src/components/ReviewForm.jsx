@@ -2,7 +2,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
+toast.success('Đăng ký thành công!');
+toast.error('Đăng nhập thất bại!');
 export default function ReviewForm({ productId, onNewReview }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');

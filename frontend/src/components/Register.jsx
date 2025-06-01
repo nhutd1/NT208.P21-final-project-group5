@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 
+toast.success('Đăng ký thành công!');
+toast.error('Đăng nhập thất bại!');
 export default function Register() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
