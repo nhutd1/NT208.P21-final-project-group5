@@ -1,192 +1,186 @@
-// src/components/AddProduct.jsx
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { FiUpload, FiLoader } from "react-icons/fi";
 
-toast.success('Đăng ký thành công!');
-toast.error('Đăng nhập thất bại!');
+// Đổi API_URL cho đúng backend public nếu cần!
+const API_URL = "http://localhost:3001/api/products";
+const UPLOAD_API = "http://localhost:3001/api/upload-image";
+
 export default function AddProduct() {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    price: '',
-    imageUrl: '',
-    category: ''
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    price: "",
+    imageUrl: "",
+    category: "",
   });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState(null);
+  const [imgPreview, setImgPreview] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  // Handle file chọn ảnh, preview ngay
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    setFile(f);
+    if (f) setImgPreview(URL.createObjectURL(f));
+    else setImgPreview("");
   };
 
-  // Xử lý upload ảnh
-  const handleImage = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
+  // Xử lý upload ảnh riêng
+  const uploadImage = async () => {
+    if (!file) return "";
     const data = new FormData();
-    data.append('image', file);
-    try {
-      // Upload file lên backend
-      const res = await axios.post('http://localhost:3001/api/upload-image', data);
-      setFormData({ ...formData, imageUrl: res.data.url });
-      setError('');
-    } catch (err) {
-      setError('Không upload được ảnh');
-    }
-    setUploading(false);
+    data.append("image", file);
+    const res = await axios.post(UPLOAD_API, data);
+    return res.data.url; // Trả về url file ảnh
+  };
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setLoading(true);
 
-    // Validate frontend:
-    if (!formData.title.trim() || formData.title.length < 3) {
-      return setError('Tên sản phẩm phải có ít nhất 3 ký tự.');
-    }
-    if (!formData.description.trim()) {
-      return setError('Mô tả không được để trống.');
-    }
-    if (!formData.price || isNaN(formData.price) || Number(formData.price) <= 0) {
-      return setError('Giá phải là số lớn hơn 0.');
-    }
-    if (!formData.category.trim()) {
-      return setError('Vui lòng chọn danh mục.');
-    }
-    // Không bắt buộc ảnh, nhưng có thể thêm kiểm tra nếu muốn:
-    // if (!formData.imageUrl) return setError('Vui lòng chọn ảnh sản phẩm.');
+    // Validate FE
+    if (!form.title || form.title.length < 3)
+      return toast.error("Tên sản phẩm phải >= 3 ký tự!"), setLoading(false);
+    if (!form.description)
+      return toast.error("Mô tả không được trống!"), setLoading(false);
+    if (!form.price || isNaN(form.price) || Number(form.price) <= 0)
+      return toast.error("Giá phải là số dương!"), setLoading(false);
+    if (!form.category)
+      return toast.error("Phải chọn danh mục!"), setLoading(false);
 
     try {
-      const token = localStorage.getItem('token');
+      // Nếu có ảnh upload thì upload lấy url
+      let imageUrl = form.imageUrl;
+      if (file) {
+        imageUrl = await uploadImage();
+      }
+      // Lấy token
+      const token = localStorage.getItem("token");
       if (!token) {
-        return navigate('/login');
+        toast.error("Bạn cần đăng nhập!");
+        setLoading(false);
+        navigate("/login");
+        return;
       }
       await axios.post(
-        'http://localhost:3001/api/products',
-        formData,
+        API_URL,
+        { ...form, imageUrl },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setSuccess('Đã thêm sản phẩm thành công!');
+      toast.success("Thêm sản phẩm thành công!");
       setTimeout(() => {
-        navigate('/');
-      }, 1500);
+        navigate("/");
+      }, 1200);
     } catch (err) {
-      setError(err.response?.data?.message || 'Đã có lỗi xảy ra.');
+      toast.error(
+        err.response?.data?.message ||
+          "Có lỗi xảy ra, vui lòng thử lại hoặc đăng nhập lại."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Thêm sản phẩm mới</h1>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">
-          {success}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="max-w-lg mx-auto bg-white p-8 rounded-xl shadow mt-8">
+      <h2 className="text-2xl font-bold mb-4">Thêm sản phẩm mới</h2>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Ảnh preview */}
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-            Tên sản phẩm
-          </label>
+          <label className="block font-medium mb-2">Ảnh sản phẩm</label>
+          <div className="flex items-center gap-3">
+            <label className="bg-gray-200 px-3 py-2 rounded cursor-pointer flex items-center gap-1 hover:bg-gray-300">
+              <FiUpload />
+              Chọn ảnh
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFile}
+              />
+            </label>
+            {imgPreview && (
+              <img
+                src={imgPreview}
+                alt="preview"
+                className="w-20 h-20 object-cover rounded shadow"
+              />
+            )}
+          </div>
+          <input
+            type="text"
+            name="imageUrl"
+            placeholder="Hoặc dán link ảnh trực tiếp"
+            value={form.imageUrl}
+            onChange={handleChange}
+            className="w-full mt-2 border px-3 py-2 rounded"
+          />
+        </div>
+        <div>
+          <label className="block font-medium mb-2">Tên sản phẩm</label>
           <input
             type="text"
             name="title"
-            id="title"
-            value={formData.title}
-            onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            value={form.title}
+            onChange={handleChange}
+            className="w-full border px-3 py-2 rounded"
           />
         </div>
-
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-            Mô tả
-          </label>
+          <label className="block font-medium mb-2">Mô tả</label>
           <textarea
             name="description"
-            id="description"
-            rows={4}
-            value={formData.description}
-            onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            value={form.description}
+            onChange={handleChange}
+            className="w-full border px-3 py-2 rounded"
           />
         </div>
-
         <div>
-          <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-            Giá (VNĐ)
-          </label>
+          <label className="block font-medium mb-2">Giá (VNĐ)</label>
           <input
             type="number"
             name="price"
-            id="price"
-            min="0"
-            step="1000"
-            value={formData.price}
-            onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            value={form.price}
+            min={0}
+            onChange={handleChange}
+            className="w-full border px-3 py-2 rounded"
           />
         </div>
-
-        {/* Upload ảnh */}
         <div>
-          <label htmlFor="image" className="block text-sm font-medium text-gray-700">
-            Ảnh sản phẩm
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImage}
-            className="mt-1 block"
-          />
-          {uploading && <p className="text-sm text-gray-500">Đang upload...</p>}
-          {formData.imageUrl && (
-            <img src={formData.imageUrl} alt="Preview" className="w-32 h-32 object-cover mt-2" />
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-            Danh mục
-          </label>
+          <label className="block font-medium mb-2">Danh mục</label>
           <select
             name="category"
-            id="category"
-            value={formData.category}
-            onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            value={form.category}
+            onChange={handleChange}
+            className="w-full border px-3 py-2 rounded"
           >
-            <option value="">Chọn danh mục</option>
-            <option value="electronics">Điện tử</option>
-            <option value="smartphones">Điện thoại</option>
-            <option value="accessories">Phụ kiện</option>
-            <option value="other">Khác</option>
+            <option value="">Chọn hãng/danh mục</option>
+            <option value="Apple">Apple</option>
+            <option value="Samsung">Samsung</option>
+            <option value="Xiaomi">Xiaomi</option>
+            <option value="Oppo">Oppo</option>
+            <option value="Khác">Khác</option>
           </select>
         </div>
-
         <div>
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
-            disabled={uploading}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2"
+            disabled={loading}
           >
+            {loading && <FiLoader className="animate-spin" />}
             Thêm sản phẩm
           </button>
         </div>
