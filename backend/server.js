@@ -5,6 +5,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
+const { body, validationResult } = require('express-validator');
+const auth = require('./middleware/auth'); // <-- Đã tách file riêng
 
 const app = express();
 
@@ -12,44 +16,39 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
+// Multer: cấu hình upload image
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, 'uploads/'));
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const basename = path.basename(file.originalname, ext);
+    cb(null, `${basename}-${Date.now()}${ext}`);
+  },
+});
+const upload = multer({ storage });
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Health-check
+app.get('/__test_alive', (req, res) => res.send('Server is ALIVE'));
+
+// Connect MongoDB
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected'))
   .catch((err) => console.error('❌ MongoDB error:', err));
 
 // Models
-// Define User model only once
-const User = mongoose.model(
-  'User',
-  new mongoose.Schema({
-    username: String,
-    email: { type: String, unique: true },
-    password: String,
-  })
-);
-
-// Import Product & Review schemas from separate files
+const User = mongoose.model('User', new mongoose.Schema({
+  username: String,
+  email: { type: String, unique: true },
+  password: String,
+}));
 const Product = require('./models/Product');
 const Review = require('./models/Review');
 
-// JWT authentication middleware
-const auth = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.sendStatus(401);
-  jwt.verify(token, process.env.JWT_SECRET, (err, payload) => {
-    if (err) return res.sendStatus(403);
-    req.user = payload; // contains { userId: ... }
-    next();
-  });
-};
-
-// Health-check route
-app.get('/__test_alive', (req, res) => res.send('Server is ALIVE'));
-
 // --------- Auth routes ---------
-
-// Register
 app.post('/api/auth/register', async (req, res) => {
   const { username, email, password } = req.body;
   try {
@@ -61,7 +60,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -76,15 +74,19 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// --------- Product routes ---------
+// --------- Image Upload route ---------
+app.post('/api/upload-image', upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
+});
 
-// Fetch all products
+// --------- Product routes ---------
 app.get('/api/products', async (req, res) => {
   const products = await Product.find();
   res.json(products);
 });
 
-// Fetch single product by ID
 app.get('/api/products/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -95,47 +97,85 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-// Create new product (requires JWT auth)
-app.post('/api/products', auth, async (req, res) => {
-  try {
-    const product = await Product.create({
-      ...req.body,
-      ownerId: req.user.userId,
-    });
-    res.json(product);
-  } catch (err) {
-    res.status(400).json({ message: 'Error creating product', error: err.message });
+app.post(
+  '/api/products',
+  auth,
+  [
+    body('title').isLength({ min: 3 }).withMessage('Tên sản phẩm phải có ít nhất 3 ký tự.'),
+    body('description').notEmpty().withMessage('Mô tả không được để trống.'),
+    body('price').isFloat({ gt: 0 }).withMessage('Giá phải là số lớn hơn 0.'),
+    body('category').notEmpty().withMessage('Danh mục không được để trống.'),
+    body('imageUrl').optional().isString(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+      const product = await Product.create({
+        ...req.body,
+        ownerId: req.user.userId,
+      });
+      res.json(product);
+    } catch (err) {
+      res.status(400).json({ message: 'Error creating product', error: err.message });
+    }
   }
-});
+);
 
 // --------- Review routes ---------
-
-// Add a review (requires JWT auth)
-app.post('/api/reviews', auth, async (req, res) => {
-  const { productId, rating, comment } = req.body;
-  try {
-    const review = await Review.create({
-      productId,
-      userId: req.user.userId,
-      rating,
-      comment,
-    });
-    res.json(review);
-  } catch (err) {
-    res.status(400).json({ message: 'Error creating review', error: err.message });
+app.post(
+  '/api/reviews',
+  auth,
+  [
+    body('productId').notEmpty().withMessage('productId là bắt buộc.'),
+    body('rating').isInt({ min: 1, max: 5 }).withMessage('Điểm phải từ 1 đến 5.'),
+    body('comment').notEmpty().withMessage('Comment không được để trống.'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+      const review = await Review.create({
+        productId: req.body.productId,
+        userId: req.user.userId,
+        rating: req.body.rating,
+        comment: req.body.comment,
+      });
+      res.json(review);
+    } catch (err) {
+      res.status(400).json({ message: 'Error creating review', error: err.message });
+    }
   }
-});
+);
 
-// Get all reviews for a product
 app.get('/api/products/:id/reviews', async (req, res) => {
   try {
-    const reviews = await Review.find({ productId: req.params.id }).populate(
-      'userId',
-      'username'
-    );
-    res.json(reviews);
+    const { id } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+    const skip = (page - 1) * limit;
+    const totalReviews = await Review.countDocuments({ productId: id });
+    const reviews = await Review.find({ productId: id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'username');
+    return res.json({
+      reviews,
+      pagination: {
+        total: totalReviews,
+        page,
+        limit,
+        totalPages: Math.ceil(totalReviews / limit),
+      },
+    });
   } catch (err) {
-    res.status(400).json({ message: 'Invalid ID', error: err.message });
+    console.error('Lỗi khi fetch reviews:', err);
+    return res.status(500).json({ message: 'Lỗi server khi lấy review.' });
   }
 });
 
